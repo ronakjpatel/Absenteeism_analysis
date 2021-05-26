@@ -1,22 +1,526 @@
 ---
 title: "Absenteeism Analysis"
-output: html_notebook
+author: "Ronak Patel"
+date: "25/05/2019"
+output: html_document
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+# Aim of the Project 
+Main aim of the project is to perform Exploratory data analysis on the dataset. 
+
+# Source of the dataset 
+UCI Machine Learning Repository
+
+## Dataset Information
+
+Number | Attribute Name | Description 
+------ | -------------- | ------------- 
+ 1.    |ID     | ID of the employee        
+ 2.    |Reason for absence         | Absences attested by the International Code of Diseases (ICD) stratified into 21 categories
+ 3.    |Month of absence         | Number of the month 
+ 4.    |Day of the week         | (Monday (2), Tuesday (3), Wednesday (4), Thursday (5), Friday (6))  
+ 5.    |Seasons         | summer (1), autumn (2), winter (3), spring (4)
+ 6.    |Transportation expense         | Money spent for the transportation
+ 7.    |Distance from Residence to Work         | Distance in kilometeres
+ 8.    |Service time         | Employee's total time in the company
+ 9.    |Age         | Age of the employee
+ 10.   |Work load Average/day         | WL average per day
+ 11.   |Hit target         | Number of targets which have been completed by employee
+ 12.   |Disciplinary failure         | yes=1; no=0
+ 13    |Education         | high school (1), graduate (2), postgraduate (3), master and doctor (4)
+ 14.   |Son         | number of children
+ 15.   |Social Drinker         | yes=1; no=0
+ 16.   |Social Smoker         | yes=1; no=0
+ 17.   |Pet         | number of pet
+ 18.   |Weight         | Weight of the employee
+ 19.   |Height         | Height of the emloyee
+ 20.   |Body Mass Index         | BMI of the employee
+ 21.   |Absenteeism time in hours (Target Variable)         | Absent hours for each day  
+ 
+ 
+### Reason for absence ICD categories 
+1. Certain infectious and parasitic diseases
+2. Neoplasms
+3. Diseases of the blood and blood-forming organs and certain disorders involving the immune mechanism
+4. Endocrine, nutritional and metabolic diseases
+5. Mental and behavioural disorders
+6. Diseases of the nervous system
+7. Diseases of the eye and adnexa
+8. Diseases of the ear and mastoid process
+9. Diseases of the circulatory system
+10. Diseases of the respiratory system
+11. Diseases of the digestive system
+12. Diseases of the skin and subcutaneous tissue
+13. Diseases of the musculoskeletal system and connective tissue
+14. Diseases of the genitourinary system
+15. Pregnancy, childbirth and the puerperium
+16. Certain conditions originating in the perinatal period
+17. Congenital malformations, deformations and chromosomal abnormalities
+18. Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified
+19. Injury, poisoning and certain other consequences of external causes
+20. External causes of morbidity and mortality
+21. Factors influencing health status and contact with health services.
+
+
+
+Importing all of the required packages.
+
+```{r results=FALSE}
+chooseCRANmirror(graphics=FALSE, ind=1)
+install.packages('caret')
+library(caret)
+install.packages("gridExtra")
+library(gridExtra)
+install.packages("dplyr")
+library("dplyr")
+install.packages("ggplot2")
+library("ggplot2")
+install.packages("ggpubr")
+library(ggpubr)
+install.packages("corrgram")
+library(corrgram)
+install.packages("psych")
+library(psych)
+install.packages("corrplot")
+library(corrplot)
+install.packages("MASS")
+library(MASS)
+install.packages("factoextra")
+library(factoextra)
+install.packages("NbClust")
+library(NbClust)
+```
+
+Importing the dataset from the local repository
 
 ```{r}
-plot(cars)
+MyData <- read.csv(file="Absenteeism_at_work.csv", header=TRUE, sep=";")
+
+```
+
+# Exploratory data analysis
+
+```{r}
+#dimension of the data
+dim(MyData)
+```
+
+We are having 740 rows and 21 columns in total in the MyData dataframe.
+
+Lets have look at the column names.
+```{r}
+#column names
+names(MyData)
+```
+
+Before we dive deeper into the dataset it is always recommended to look at the detailed picture of the dataframe.
+
+```{r}
+#checking the structure of the data
+str(MyData)
+```
+
+
+Only exracting the rows which have valid Reason.for.absence.
+
+```{r}
+MyData<-subset(MyData, MyData$Reason.for.absence!=0)
+```
+
+
+Next, We are deleting abnormal valued entries.
+
+Logically, it is not possible to have employees who has never been absent (having 0 value in __Absenteeism.time.in.hours__ ) and still having the reason for the absence (having >0 value in __Reason.for.absence__). 
+
+If any of this kind of records exsist we will simply deleted this.
+
+```{r}
+#deleting abnormal records
+MyData= MyData[!(MyData$Absenteeism.time.in.hours<=0 & MyData$Reason.for.absence >= 0) ,]
+```
+
+
+There are large number of the columns which are having the wrong data type considering the value they contain. So, I believe that, we should change that data types to the appropriate ones.
+
+```{r results=FALSE}
+#Making categorical variables types as factors
+MyData$ID = as.factor(as.character(MyData$ID))
+MyData$Reason.for.absence = as.factor(as.character(MyData$Reason.for.absence))
+#Assigning corrosponding names the ICD codes
+levels(MyData$Reason.for.absence)<-list('infectious,parasitic diseases'='0',
+                                        'Neoplasms'='1','Diseases of the blood'='2','Endocrine and metabolic diseases'='3','Mental and behavioural disorders'='4', 
+                                        'Diseases of the nervous system'='5','Diseases of the eye and adnexa'='6','Diseases of the ear and mastoid process'='7',
+                                        'Diseases of the circulatory system'='8','Diseases of the respiratory system'='9','Diseases of the digestive system'='10', 
+                                        'Diseases of the skin and subcutaneous tissue'='11','Diseases of the musculoskeletal system and connective tissue'='12', 
+                                        'Diseases of the genitourinary system'='13','Pregnancy, childbirth and the puerperium'='14','Certain conditions originating in the perinatal'='15', 
+                                        'Congenital malformations, deformations and chromosomal abnormalities'= '16','Symptoms, signs and abnormal clinical  findings'='17',
+                                        'Injury, poisoning and certain other consequences of external causes'= '18','causes of morbidity and mortality'='19',
+                                        'Factors influencing health status and contact with health services'='21','patient follow-up'='22','medical consultation'='23','blood donation'='24',
+                                        'laboratory examination'='25','unjustified absence'='26','physiotherapy'='27','dental consultation'='28')
+
+MyData$Month.of.absence = as.factor(as.character(MyData$Month.of.absence)) 
+MyData$Day.of.the.week<- factor(MyData$Day.of.the.week)
+levels(MyData$Day.of.the.week)<-list(Mon="2",Tue="3",Wed="4",Thu="5",Fri="6")
+
+MyData$Seasons<- factor(MyData$Seasons)
+levels(MyData$Seasons)<-list(Summer="1",Autumn="2",Winter="3",Spring="4")
+
+
+MyData$Education<- factor(MyData$Education)
+levels(MyData$Education)<-list(HSc="1",Graduate="2",PG="3", MaAndDr="4")
+
+MyData$Disciplinary.failure<- factor(MyData$Disciplinary.failure)
+levels(MyData$Disciplinary.failure)<-list(Yes="1",No="0")
+
+MyData$Social.drinker<- factor(MyData$Social.drinker)
+levels(MyData$Social.drinker)<-list(Yes="1",No="0")
+
+MyData$Social.smoker<- factor(MyData$Social.smoker)
+levels(MyData$Social.smoker)<-list(Yes="1",No="0")
+
+
+MyData$Pet = as.factor(as.character(MyData$Pet))
+MyData$Son = as.factor(as.character(MyData$Son))
+
+```
+
+Checking the summury of the data
+
+```{r}
+#summary of the dataset
+summary(MyData)
+```
+
+Looks like the dataset is in the right format now. 
+
+Lets dive into the dataset.
+
+Check for any missing value within datset
+
+```{r}
+#any missing (NA) values in dataset ?
+sapply(MyData, function(x)all(is.na(x)))
+
+```
+
+No any missing values.
+
+Checking for the frequency distribution of the Disciplinary.failure variable.
+```{r}
+table(MyData$Disciplinary.failure)
+```
+
+All of the values in __Disciplinary.failure__ variable is No. Thus, we can say that this variable will not add any new information into our model building process. I am deleting this feature.
+
+```{r}
+MyData <- MyData[,-12] #column number of the Disciplinary.failure variable is 12.
+```
+
+Checking the count distribution of the categorical variables.
+
+```{r}
+#checking count distribution of categorical variables 
+b1 = ggplot(data = MyData, aes(x = Month.of.absence)) + geom_bar() + ggtitle("Month Counts") + theme_bw()
+b2 = ggplot(data = MyData, aes(x = Day.of.the.week)) + geom_bar() + ggtitle("Day Counts") + theme_bw()
+b3 = ggplot(data = MyData, aes(x = Seasons)) + geom_bar() + ggtitle("Seasons Counts") + theme_bw()
+b4 = ggplot(data = MyData, aes(x = Education)) + geom_bar() + ggtitle("Education Counts") + theme_bw()
+b5 = ggplot(data = MyData, aes(x = Son)) + geom_bar() + ggtitle("Son Counts") + theme_bw()
+b6 = ggplot(data = MyData, aes(x = Social.smoker)) + geom_bar() + ggtitle("Social smoker Counts") + theme_bw()
+b7 = ggplot(data = MyData, aes(x = Social.drinker)) + geom_bar() + ggtitle("Social drinker Counts") + theme_bw()
+
+gridExtra::grid.arrange(b1,b2,b3,b4,ncol=2)
+gridExtra::grid.arrange(b5,b6,b7,ncol=2)
+
+```
+
+
+We can see the imbalance between the categories in the __Education__ and __Social Smoker__ variables. We are also removing that variables.
+
+```{r}
+MyData <- MyData[,-c(12,15)] # 12 is education and 15 is Social Smoker
+```
+
+Looking at the distribution of the target variable
+```{r}
+#see the distribution of the absenteeism hours 
+ggplot(MyData, aes(x=MyData$Absenteeism.time.in.hours)) +
+  geom_histogram() + geom_vline(aes(xintercept=mean(MyData$Absenteeism.time.in.hours)),color="red", linetype="dashed") 
+```
+
+The distribution of the target variable is highly skewed. 
+
+Checking the distribution of the other numeric variables.
+```{r}
+#extracting continuous variables
+num_i = sapply(MyData, is.numeric)
+num_d = MyData[,num_i]
+
+#Checking the distribution of continues variables
+h1 = ggplot(data = num_d, aes(x =Transportation.expense)) + ggtitle("Transportation.expense") + geom_histogram(bins = 25)
+h2 = ggplot(data = num_d, aes(x =Distance.from.Residence.to.Work)) + ggtitle("Distance.from.Residence.to.Work") + geom_histogram(bins = 25)
+h3 = ggplot(data = num_d, aes(x =Age)) + ggtitle("Age") + geom_histogram(bins = 25)
+h4 = ggplot(data = num_d, aes(x =Work.load.Average.day)) + ggtitle("Work.load.Average.day") + geom_histogram(bins = 25)
+h5 = ggplot(data = num_d, aes(x =Hit.target)) + ggtitle("Hit.target") + geom_histogram(bins = 25)
+h6 = ggplot(data = num_d, aes(x =Weight)) + ggtitle("Weight") + geom_histogram(bins = 25)
+h7 = ggplot(data = num_d, aes(x =Height)) + ggtitle("Height") + geom_histogram(bins = 25)
+h8 = ggplot(data = num_d, aes(x =Body.mass.index)) + ggtitle("Body.mass.index") + geom_histogram(bins = 25)
+
+gridExtra::grid.arrange(h1,h2,h3,h4,ncol=2)
+gridExtra::grid.arrange(h5,h6,h7,h8,ncol=2)
+
+```
+
+Checking the numeric variable's boxplots for detecting outliers.
+
+
+```{r}
+#Checking for outliers 
+boxplot(MyData[,c('Transportation.expense','Distance.from.Residence.to.Work', 'Service.time', 'Age','Hit.target')], varwidth = T, 
+        col = "dark grey")
 ```
 ```{r}
+#Checking for outliers 
+boxplot(MyData[,c('Work.load.Average.day','Weight','Height','Body.mass.index')], varwidth = T, 
+        col = "dark grey")
+```
+
+
+```{r}
+boxplot(MyData[,c('Absenteeism.time.in.hours')], col = "grey")
+```
+
+One way to deal with the outliers is to replace them with percentile values. 
+
+```{r}
+#replacing outlier values with 25% and 75% percentile values 
+for (i in c('Transportation.expense','Distance.from.Residence.to.Work','Service.time','Age','Work.load.Average.day','Hit.target','Weight','Height','Body.mass.index','Absenteeism.time.in.hours')){
+  q = quantile(MyData[,i],c(0.25,0.75))
+  iqr1 = q[2]-q[1]
+  min1 = q[1]-1.5*iqr1
+  max1 = q[2]+1.5*iqr1
+  MyData[,i][MyData[,i]<min1] = min1
+  MyData[,i][MyData[,i]>max1] = max1
+}
+```
+
+
+Checking the boxplots after replacing the outliers.
+
+```{r}
+#checking again 
+boxplot(MyData[,c('Transportation.expense','Distance.from.Residence.to.Work','Service.time','Age','Work.load.Average.day','Hit.target','Weight','Height','Body.mass.index','Absenteeism.time.in.hours')], varwidth = T, 
+        col = "dark grey")
 
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+It can be clearly seen that our all of the numeric variables are now falling within our range. There are no any obvious outliers present in numeric variables. 
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+Generating figure which shows the what is the most common reason of absence with percentages. 
 
+```{r}
+library(dplyr)
+res <-  as.data.frame(MyData %>% group_by(Reason.for.absence) %>% dplyr::summarise(count= n(), percent = round(count*100/nrow(MyData),1))%>% arrange(desc(count)))
+ggplot(res,aes(x = reorder(Reason.for.absence,percent), y= percent, fill= Reason.for.absence)) + geom_bar(stat = 'identity') + coord_flip() + theme(legend.position='none') +  
+  geom_text(aes(label = percent), vjust = 0.5) + xlab('Absence reason')
+
+```
+
+Considering above figure we can define that __medical consultation__ is the most common reason for the absence on work.  
+
+Top 3 reasons for absence are 
+
+1. medical consultation __21.4__%
+2. dental consultation __16.1__%
+3. physiotherapy __9.8__%
+
+
+Seperating continuous and categorical variables from the dataframe for futher analysis.
+
+```{r}
+#extracting continuous variables
+num_i = sapply(MyData, is.numeric)
+num_d = MyData[,num_i]
+```
+
+Looking at the correlation between continuous variables
+
+```{r}
+#checking correlation 
+num_d_cor = cor(num_d, method = c("pearson"))
+library(corrplot)
+corrplot(num_d_cor, order = "hclust", tl.srt = 30, tl.col = "black", addrect = 3, method = "number" )
+```
+
+  As per the above correlation plot we found there is strong positive relationship between the BMI and the Weight variable. 
+
+  Another strong positive relationship is discovered between Service.Time and Age variables. 
+
+It is wise choice to delete Weight and Age variables. It will reduce the dimension of the data. 
+
+
+```{r}
+MyData <- subset(MyData, select = -c(Age,Weight) )
+```
+
+Now, It is the time to look at the categorical variables and the relationship between them.
+
+First, we extract the categorical variables from the dataset and store it in the other variable.
+
+
+```{r}
+#extracting categorical variables
+fac_d = sapply(MyData, is.factor)
+fac_d = MyData[,fac_d]
+```
+
+We do not need __ID__ variable in the dataframe of the categorical variables.
+
+```{r}
+#removing the ID column
+fac_d <- subset(fac_d, select = -c(ID) )
+head(fac_d,5)
+```
+
+Double checking the structure of the data frame.
+
+```{r}
+str(fac_d)
+```
+
+In order to test the relationship between the categorical variables I am using the Chi-squared test ($$ X^2 $$)
+
+The Chi-Squared test is a statistical hypothesis test that assumes (the null hypothesis) that the observed frequencies for a categorical variable match the expected frequencies for the categorical variable.
+
+
+If __Statistic >= Critical Value__: significant result, __reject__ null hypothesis (H0), dependent.
+If __Statistic < Critical Value__: not significant result, __fail to reject__ null hypothesis (H0), independent.
+
+
+```{r}
+#create vector for storing the chi-sq test compaision p-values 
+p_val <- c()
+
+cat_var_col_names <- c("Reason.for.absence","Month.of.absence","Day.of.the.week","Seasons","Son","Social.drinker","Pet")
+
+#Calculating & storing pvalues in vector p_val 
+for(i in cat_var_col_names){ 
+  for(j in cat_var_col_names){
+    chi = chisq.test(fac_d[,i],fac_d[,j])
+    p_val = c(p_val,chi$p.value)  #p_val is storing all the p_values of the all possible comparisions
+  }
+}
+
+
+#converting floating point numbers to 0's and 1's 
+
+for(x in c(1:length(p_val)))
+{
+  if(p_val[x]<0.05)  #here we make 0 if the p value is less that 0.05 as it means fail to rejection of the null hypothesis (INDEPENDENT)
+  {
+    p_val[x]<-0
+  }else
+  {
+    p_val[x]<-1  #DEPENDENT
+  }
+}
+
+
+
+```
+```{r}
+#coverting p_val variable into the matrix form
+mat <- matrix(p_val, ncol = 7)
+print(mat)
+#giving matrix the columns names for batter interpretation
+dat_fr <- data.frame(mat)
+rownames(dat_fr) <- cat_var_col_names
+colnames(dat_fr) <- cat_var_col_names
+print(dat_fr)
+```
+
+Considering above matrix, I decided to exclude Day.of.the.week, Social.drinker.
+
+we are only keeping the features which are adding new infromation whilst deleting the feaures which are dependent to on other.
+
+
+```{r}
+MyData <- subset(MyData, select = -c(ID,Day.of.the.week,Social.drinker))
+str(MyData)
+```
+
+In order to use regression algorithm, the features of the data set has to be linearly seperable. We can quickly check out the linearlity between the variables using pairsplot. 
+
+```{r}
+pairs(num_d)
+```
+
+we can not see any linearity in the data set so regression model's would not be the best choice to be made.
+
+One way we can approach this problem is we can find the best optimum clusters within data points using __K-Means__ algorithm. Finally we can divide target variables into the K-means suggested categories and turn this problem into the classification problem.
+
+K-Means only works with continues variables 
+
+```{r}
+#extracting continues variable
+model_dat = sapply(MyData, is.numeric)
+model_dat = MyData[,model_dat]
+```
+
+
+Before we implement K-Means we should scale the data set. 
+
+```{r}
+#scaling 
+model_dat <- scale(model_dat) 
+```
+
+In cluster analysis, the elbow method is a heuristic used in determining the number of clusters in a data set. 
+```{r}
+# Elbow method
+factoextra::fviz_nbclust(model_dat, kmeans, method = "wss") +
+  geom_vline(xintercept = 3, linetype = 2)+
+  labs(subtitle = "Elbow method")
+```
+
+The silhouette value is a measure of how similar an object is to its own cluster compared to other clusters
+
+```{r}
+# Silhouette method
+factoextra::fviz_nbclust(model_dat, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method") 
+
+```
+
+```{r}
+#Gap Statistics Method   
+set.seed(4321)
+factoextra::fviz_nbclust(model_dat, kmeans, nstart = 25,  method = "gap_stat", nboot = 100)+
+  labs(subtitle = "Gap statistic method")
+```
+
+Above each of the method sugguest that, 3 number of clusters will divide each of the classes distinctively whilst keeping the variation within each cluster as low as possible.
+
+Lets's see the visual proof.
+
+```{r}
+set.seed(4321)
+k2 <- kmeans(model_dat, centers = 2, nstart = 35)
+k3 <- kmeans(model_dat, centers = 3, nstart = 35)
+k4 <- kmeans(model_dat, centers = 4, nstart = 35)
+k7 <- kmeans(model_dat, centers = 7, nstart = 35)
+
+# visualising cluters with various values 
+p1 = factoextra::fviz_cluster(k2, geom = "point", data = model_dat) + ggtitle("k = 2")
+p2 = factoextra::fviz_cluster(k3, geom = "point", data = model_dat) + ggtitle("k = 3")
+p3 = factoextra::fviz_cluster(k4, geom = "point",  data = model_dat) + ggtitle("k = 4")
+p4 = factoextra::fviz_cluster(k7, geom = "point",  data = model_dat) + ggtitle("k = 7")
+
+
+#arranging in one grid for better comparision 
+gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+
+Here is the end of the EDA process. 
