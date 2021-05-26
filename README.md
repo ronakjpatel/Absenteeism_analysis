@@ -2,6 +2,6 @@
 Detailed Exploratory Data Analysis of the Absenteeism at work in the R lanaguage 
 
 
-follow the link
+Please follow the link to see work..
 
-https://rpubs.com/rjpatel7991/774217
+https://rpubs.com/rjpatel7991/774223
